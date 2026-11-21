@@ -670,7 +670,7 @@
 						"     validateSchema: true,",
 						"     isolationLevel: 'READ_UNCOMMITTED',",
 						"     format: 'table') ~> sourceDimFechaAlta",
-						"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id,",
+						"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id_bk,",
 						"     joinType:'inner',",
 						"     matchType:'exact',",
 						"     ignoreSpaces: false,",
@@ -687,7 +687,11 @@
 						"     broadcast: 'auto')~> joinDiagnosticos",
 						"joinDiagnosticos, sourceDimDiagnostico join(icd_code == codigo_icd",
 						"     && diagnosis_description == descripcion_patologia",
-						"     && severity == nivel_severidad,",
+						"     && iif(\r",
+						"    isNull(severity) || trim(severity) == '',\r",
+						"    'No especificada',\r",
+						"    trim(severity)\r",
+						") == nivel_severidad,",
 						"     joinType:'inner',",
 						"     matchType:'exact',",
 						"     ignoreSpaces: false,",
@@ -853,9 +857,12 @@
 						"     isolationLevel: 'READ_UNCOMMITTED',",
 						"     format: 'table') ~> source1",
 						"source(output(",
-						"          admission_id_ref as integer,",
-						"          patient_id_ref as integer,",
-						"          department_ref as string",
+						"          admission_id as integer,",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
 						"     ),",
 						"     allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -863,7 +870,7 @@
 						"     format: 'table') ~> source2",
 						"source(output(",
 						"          paciente_key as integer,",
-						"          patient_id_bk_ref as integer",
+						"          patient_id_bk as integer",
 						"     ),",
 						"     allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -871,7 +878,7 @@
 						"     format: 'table') ~> source3",
 						"source(output(",
 						"          departamento_key as integer,",
-						"          departamento_ref as string",
+						"          nombre_departamento as string",
 						"     ),",
 						"     allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -879,8 +886,8 @@
 						"     format: 'table') ~> source4",
 						"source(output(",
 						"          servicio_cargo_key as integer,",
-						"          charge_type_ref as string,",
-						"          payment_status_ref as string",
+						"          tipo_cargo as string,",
+						"          estado_pago as string",
 						"     ),",
 						"     allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -888,35 +895,35 @@
 						"     format: 'table') ~> source5",
 						"source(output(",
 						"          fecha_key as integer,",
-						"          fecha_pago_ref as date",
+						"          fecha_completa as date",
 						"     ),",
 						"     allowSchemaDrift: false,",
 						"     validateSchema: true,",
 						"     isolationLevel: 'READ_UNCOMMITTED',",
 						"     format: 'table') ~> source6",
-						"source1, source2 lookup(admission_id == admission_id_ref,",
+						"source1, source2 lookup(source1@admission_id == source2@admission_id,",
 						"     multiple: false,",
 						"     pickup: 'any',",
 						"     broadcast: 'auto')~> lookup1",
-						"lookup1, source3 lookup(patient_id_ref == patient_id_bk_ref,",
+						"lookup1, source3 lookup(patient_id == patient_id_bk,",
 						"     multiple: false,",
 						"     pickup: 'any',",
 						"     broadcast: 'auto')~> lookup2",
-						"lookup2, source4 lookup(department_ref == departamento_ref,",
+						"lookup2, source4 lookup(department == nombre_departamento,",
 						"     multiple: false,",
 						"     pickup: 'any',",
 						"     broadcast: 'auto')~> lookup3",
-						"lookup3, source5 lookup(charge_type == charge_type_ref",
-						"     && payment_status == payment_status_ref,",
+						"lookup3, source5 lookup(charge_type == tipo_cargo",
+						"     && payment_status == estado_pago,",
 						"     multiple: false,",
 						"     pickup: 'any',",
 						"     broadcast: 'auto')~> lookup4",
-						"lookup4, source6 lookup(payment_date == fecha_pago_ref,",
+						"lookup4, source6 lookup(payment_date == fecha_completa,",
 						"     multiple: false,",
 						"     pickup: 'any',",
 						"     broadcast: 'auto')~> lookup5",
 						"lookup5 derive(billing_id_bk = billing_id,",
-						"          admission_id_bk = admission_id,",
+						"          admission_id_bk = source1@admission_id,",
 						"          monto_facturado = toDecimal(amount),",
 						"          conteo_transacciones = toInteger(1)) ~> derivedColumn1",
 						"derivedColumn1 select(mapColumn(",
@@ -936,7 +943,7 @@
 						"          !isNull(paciente_key) &&",
 						"          !isNull(departamento_key) &&",
 						"          !isNull(servicio_cargo_key) &&",
-						"          !isNull(monto_facturado),",
+						"          !isNull(fecha_pago_key),",
 						"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
 						"conditionalSplit1@valid sink(allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -1129,6 +1136,293 @@
 				"annotations": []
 			},
 			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_pl_carga')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Gold_df_fecha",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_fecha",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"source2": {},
+									"source3": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_pacientes",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_fecha",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_pacientes",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_departamentos",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_pacientes",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_departamentos",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_diagnostico",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_departamentos",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_diagnostico",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_servicio_cargo",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_diagnostico",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_servicio_cargo",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_admisiones",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_servicio_cargo",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_admisiones",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"sourceAdmisiones": {},
+									"sourceDimPaciente": {},
+									"sourceDimDepartamento": {},
+									"sourceDiagnoses": {},
+									"sourceDimDiagnostico": {},
+									"sourceDimFechaIngreso": {},
+									"sourceDimFechaAlta": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "Gold_df_facturacion",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Gold_df_admisiones",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "Gold_df_facturacion",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"source1": {},
+									"source2": {},
+									"source3": {},
+									"source4": {},
+									"source5": {},
+									"source6": {},
+									"sink1": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_fecha')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_pacientes')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_departamentos')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_diagnostico')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_servicio_cargo')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_admisiones')]",
+				"[concat(variables('factoryId'), '/dataflows/Gold_df_facturacion')]"
+			]
 		}
 	]
 }
