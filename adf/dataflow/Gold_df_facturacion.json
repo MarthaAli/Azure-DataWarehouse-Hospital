@@ -182,7 +182,7 @@
 				"          !isNull(paciente_key) &&",
 				"          !isNull(departamento_key) &&",
 				"          !isNull(servicio_cargo_key) &&",
-				"          !isNull(monto_facturado),",
+				"          !isNull(fecha_pago_key),",
 				"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
 				"conditionalSplit1@valid sink(allowSchemaDrift: false,",
 				"     validateSchema: true,",
