@@ -212,7 +212,7 @@
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true) ~> select1",
 				"select1 derive(dias_estancia = iif(isNull(discharge_date), toInteger(null()), toInteger(discharge_date - admission_date)),",
-				"          conteo_admisiones = toInteger(1)) ~> derivedColumn1",
+				"          conteo_admisiones = iif(admission_id_bk == 1, 1, 0)) ~> derivedColumn1",
 				"derivedColumn1 sink(allowSchemaDrift: false,",
 				"     validateSchema: true,",
 				"     input(",
