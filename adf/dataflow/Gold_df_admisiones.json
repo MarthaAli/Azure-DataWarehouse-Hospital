@@ -162,7 +162,7 @@
 				"     validateSchema: true,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     format: 'table') ~> sourceDimFechaAlta",
-				"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id,",
+				"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id_bk,",
 				"     joinType:'inner',",
 				"     matchType:'exact',",
 				"     ignoreSpaces: false,",
