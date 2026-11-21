@@ -1,0 +1,161 @@
+{
+	"name": "Gold_df_fecha",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admissions",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admissions",
+						"type": "DatasetReference"
+					},
+					"name": "source2"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Billing",
+						"type": "DatasetReference"
+					},
+					"name": "source3"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Fecha",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "filter1"
+				},
+				{
+					"name": "filter2"
+				},
+				{
+					"name": "filter3"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "select2"
+				},
+				{
+					"name": "select3"
+				},
+				{
+					"name": "union1"
+				},
+				{
+					"name": "aggregate1"
+				},
+				{
+					"name": "select4"
+				},
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "alterRow1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_date as date",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source(output(",
+				"          discharge_date as date",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source2",
+				"source(output(",
+				"          payment_date as date",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source3",
+				"source1 filter(!isNull(admission_date)) ~> filter1",
+				"source2 filter(!isNull(discharge_date)) ~> filter2",
+				"source3 filter(!isNull(payment_date)) ~> filter3",
+				"filter1 select(mapColumn(",
+				"          fecha_completa = admission_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"filter2 select(mapColumn(",
+				"          fecha_completa = discharge_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select2",
+				"filter3 select(mapColumn(",
+				"          fecha_completa = payment_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select3",
+				"select1, select2, select3 union(byName: true)~> union1",
+				"union1 aggregate(groupBy(fecha_completa),",
+				"     total_fechas = count()) ~> aggregate1",
+				"aggregate1 select(mapColumn(",
+				"          fecha_completa",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select4",
+				"select4 derive(fecha_key = toInteger(toString(fecha_completa, 'yyyyMMdd')),",
+				"          anio = toShort(year(fecha_completa)),",
+				"          trimestre = toByte(ceil(toDecimal(month(fecha_completa)) / 3)),",
+				"          trimestre_nombre = concat('T', toString(ceil(toDecimal(month(fecha_completa)) / 3))),",
+				"          mes = toByte(month(fecha_completa)),",
+				"          mes_nombre = case(month(fecha_completa) == 1, 'Enero', month(fecha_completa) == 2, 'Febrero', month(fecha_completa) == 3, 'Marzo', month(fecha_completa) == 4, 'Abril', month(fecha_completa) == 5, 'Mayo', month(fecha_completa) == 6, 'Junio', month(fecha_completa) == 7, 'Julio', month(fecha_completa) == 8, 'Agosto', month(fecha_completa) == 9, 'Septiembre', month(fecha_completa) == 10, 'Octubre', month(fecha_completa) == 11, 'Noviembre', 'Diciembre'),",
+				"          mes_corto = case(month(fecha_completa) == 1, 'Ene', month(fecha_completa) == 2, 'Feb', month(fecha_completa) == 3, 'Mar', month(fecha_completa) == 4, 'Abr', month(fecha_completa) == 5, 'May', month(fecha_completa) == 6, 'Jun', month(fecha_completa) == 7, 'Jul', month(fecha_completa) == 8, 'Ago', month(fecha_completa) == 9, 'Sep', month(fecha_completa) == 10, 'Oct', month(fecha_completa) == 11, 'Nov', 'Dic'),",
+				"          semana_anio = toByte(weekOfYear(fecha_completa)),",
+				"          dia_mes = toByte(dayOfMonth(fecha_completa)),",
+				"          dia_semana = toByte(iif(dayOfWeek(fecha_completa) == 0, 7, dayOfWeek(fecha_completa))),",
+				"          dia_nombre = case(dayOfWeek(fecha_completa) == 1, 'Lunes', dayOfWeek(fecha_completa) == 2, 'Martes', dayOfWeek(fecha_completa) == 3, 'Miercoles', dayOfWeek(fecha_completa) == 4, 'Jueves', dayOfWeek(fecha_completa) == 5, 'Viernes', dayOfWeek(fecha_completa) == 6, 'Sabado', 'Domingo'),",
+				"          es_fin_de_semana = iif(dayOfWeek(fecha_completa) == 0 || dayOfWeek(fecha_completa) == 6, true(), false())) ~> derivedColumn1",
+				"derivedColumn1 alterRow(upsertIf(true())) ~> alterRow1",
+				"alterRow1 sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          fecha_key as integer,",
+				"          fecha_completa as date,",
+				"          anio as integer,",
+				"          trimestre as integer,",
+				"          trimestre_nombre as string,",
+				"          mes as integer,",
+				"          mes_nombre as string,",
+				"          mes_corto as string,",
+				"          semana_anio as integer,",
+				"          dia_mes as integer,",
+				"          dia_semana as integer,",
+				"          dia_nombre as string,",
+				"          es_fin_de_semana as boolean",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:false,",
+				"     upsertable:true,",
+				"     keys:['fecha_key'],",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError') ~> sink1"
+			]
+		}
+	}
+}
