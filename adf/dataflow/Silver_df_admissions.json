@@ -98,7 +98,7 @@
 				"     broadcast: 'auto')~> exists1",
 				"exists1 split(!isNull(admission_id) && !isNull(patient_id) && !isNull(admission_date) && !isNull(department) && department != '' && !isNull(attending_doctor_id) && (isNull(discharge_date) || discharge_date >= admission_date),",
 				"     disjoint: false) ~> conditionalSplit1@(validRows, invalidRows)",
-				"conditionalSplit1@validRows alterRow(insertIf(true())) ~> alterRow1",
+				"conditionalSplit1@validRows alterRow(upsertIf(true())) ~> alterRow1",
 				"alterRow1 sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
 				"     input(",
