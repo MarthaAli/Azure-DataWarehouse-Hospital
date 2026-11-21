@@ -1,0 +1,246 @@
+{
+	"name": "Gold_df_admisiones",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admissions",
+						"type": "DatasetReference"
+					},
+					"name": "sourceAdmisiones"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Pacientes",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDimPaciente"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Departamentos",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDimDepartamento"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDiagnoses"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Diagnostico",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDimDiagnostico"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Fecha",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDimFechaIngreso"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Fecha",
+						"type": "DatasetReference"
+					},
+					"name": "sourceDimFechaAlta"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Admisiones",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "joinPaciente"
+				},
+				{
+					"name": "joinDepartamento"
+				},
+				{
+					"name": "joinDiagnosticos"
+				},
+				{
+					"name": "joinDimDiagnostico"
+				},
+				{
+					"name": "joinFechaIngreso"
+				},
+				{
+					"name": "joinFechaAlta"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "derivedColumn1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceAdmisiones",
+				"source(output(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDimPaciente",
+				"source(output(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDimDepartamento",
+				"source(output(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDiagnoses",
+				"source(output(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDimDiagnostico",
+				"source(output(",
+				"          fecha_key as integer,",
+				"          fecha_completa as date",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDimFechaIngreso",
+				"source(output(",
+				"          fecha_key as integer,",
+				"          fecha_completa as date",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> sourceDimFechaAlta",
+				"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinPaciente",
+				"joinPaciente, sourceDimDepartamento join(department == nombre_departamento,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinDepartamento",
+				"joinDepartamento, sourceDiagnoses join(sourceAdmisiones@admission_id == sourceDiagnoses@admission_id,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinDiagnosticos",
+				"joinDiagnosticos, sourceDimDiagnostico join(icd_code == codigo_icd",
+				"     && diagnosis_description == descripcion_patologia",
+				"     && severity == nivel_severidad,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinDimDiagnostico",
+				"joinDimDiagnostico, sourceDimFechaIngreso join(admission_date == fecha_completa,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinFechaIngreso",
+				"joinFechaIngreso, sourceDimFechaAlta join(discharge_date == sourceDimFechaAlta@fecha_completa,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinFechaAlta",
+				"joinFechaAlta select(mapColumn(",
+				"          admission_id_bk = sourceAdmisiones@admission_id,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          medico_id = attending_doctor_id,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key = sourceDimFechaIngreso@fecha_key,",
+				"          fecha_alta_key = sourceDimFechaAlta@fecha_key",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"select1 derive(dias_estancia = iif(isNull(discharge_date), toInteger(null()), toInteger(discharge_date - admission_date)),",
+				"          conteo_admisiones = toInteger(1)) ~> derivedColumn1",
+				"derivedColumn1 sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          admision_key as long,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          diagnostico_key as integer,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer,",
+				"          conteo_admisiones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key,",
+				"          fecha_alta_key,",
+				"          medico_id,",
+				"          dias_estancia,",
+				"          conteo_admisiones",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}

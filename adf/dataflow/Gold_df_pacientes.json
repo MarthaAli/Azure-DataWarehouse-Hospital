@@ -52,7 +52,7 @@
 				"          correo_electronico = email,",
 				"          direccion = address,",
 				"          proveedor_seguro = trim(insurance_provider)) ~> derivedColumn1",
-				"derivedColumn1 split(!isNull(insurance_provider) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
+				"derivedColumn1 split(!isNull(insurance_provider) && !isNull(date_of_birth) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
 				"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
 				"conditionalSplit1@valid sink(allowSchemaDrift: false,",
 				"     validateSchema: true,",
