@@ -144,7 +144,7 @@
 				"     multiple: false,",
 				"     pickup: 'any',",
 				"     broadcast: 'auto')~> lookup1",
-				"lookup1, source3 lookup(patient_id == paciente_key,",
+				"lookup1, source3 lookup(patient_id == patient_id_bk_ref,",
 				"     multiple: false,",
 				"     pickup: 'any',",
 				"     broadcast: 'auto')~> lookup2",
