@@ -39,7 +39,7 @@
 					"name": "conditionalSplit1"
 				},
 				{
-					"name": "select1"
+					"name": "alterRow1"
 				}
 			],
 			"scriptLines": [
@@ -87,9 +87,10 @@
 				"              lower(trim(department)) == 'onco' || lower(trim(department)) == 'oncologyy', 'Oncology',",
 				"              lower(trim(department)) == 'cardio' || lower(trim(department)) == 'cardiolgy', 'Cardiology',",
 				"              lower(trim(department)) == 'ortho' || lower(trim(department)) == 'orthopaedics', 'Orthopedics',",
-				"              lower(trim(department)) == 'peds', 'Pediatrics',",
-				"              lower(trim(department)) == 'gen surg', 'General Surgery',",
+				"              lower(trim(department)) == 'peds' || lower(trim(department)) == 'paediatrics', 'Pediatrics',",
+				"              lower(trim(department)) == 'gen surg' || lower(trim(department)) == 'generalsurgery', 'General Surgery',",
 				"              lower(trim(department)) == 'neuro' || lower(trim(department)) == 'nuerology', 'Neurology',",
+				"              lower(trim(department)) == 'emergancy' || lower(trim(department)) == 'er', 'Emergency',",
 				"              initCap(trim(department))",
 				"          )) ~> derivedColumn1",
 				"derivedColumn1, sourcePatients exists(derivedColumn1@patient_id == sourcePatients@patient_id,",
@@ -97,17 +98,8 @@
 				"     broadcast: 'auto')~> exists1",
 				"exists1 split(!isNull(admission_id) && !isNull(patient_id) && !isNull(admission_date) && !isNull(department) && department != '' && !isNull(attending_doctor_id) && (isNull(discharge_date) || discharge_date >= admission_date),",
 				"     disjoint: false) ~> conditionalSplit1@(validRows, invalidRows)",
-				"conditionalSplit1@validRows select(mapColumn(",
-				"          admission_id,",
-				"          patient_id,",
-				"          admission_date,",
-				"          discharge_date,",
-				"          department,",
-				"          attending_doctor_id",
-				"     ),",
-				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> select1",
-				"select1 sink(allowSchemaDrift: false,",
+				"conditionalSplit1@validRows alterRow(insertIf(true())) ~> alterRow1",
+				"alterRow1 sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
 				"     input(",
 				"          admission_id as integer,",
