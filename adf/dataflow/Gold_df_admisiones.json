@@ -166,7 +166,7 @@
 				"     joinType:'inner',",
 				"     matchType:'exact',",
 				"     ignoreSpaces: false,",
-				"     broadcast: 'auto')~> joinPaciente",
+				"     broadcast: 'right')~> joinPaciente",
 				"joinPaciente, sourceDimDepartamento join(department == nombre_departamento,",
 				"     joinType:'inner',",
 				"     matchType:'exact',",
