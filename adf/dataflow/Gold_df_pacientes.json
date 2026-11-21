@@ -1,0 +1,89 @@
+{
+	"name": "Gold_df_pacientes",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Patients",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_Pacientes",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "conditionalSplit1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          patient_id as integer,",
+				"          full_name as string,",
+				"          gender as string,",
+				"          date_of_birth as date,",
+				"          phone as string,",
+				"          email as string,",
+				"          address as string,",
+				"          insurance_provider as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source1 derive(patient_id_bk = patient_id,",
+				"          nombre_completo = trim(full_name),",
+				"          genero = iif(lower(trim(gender)) == 'male' || lower(trim(gender)) == 'masculino', 'Masculino', iif(lower(trim(gender)) == 'female' || lower(trim(gender)) == 'femenino', 'Femenino', 'Otro')),",
+				"          fecha_nacimiento = date_of_birth,",
+				"          rango_etario = iif(isNull(date_of_birth), toString(null()), iif(year(currentDate()) - year(date_of_birth) <= 18, '0-18', iif(year(currentDate()) - year(date_of_birth) <= 35, '19-35', iif(year(currentDate()) - year(date_of_birth) <= 60, '36-60', '60+')))),",
+				"          correo_electronico = email,",
+				"          direccion = address,",
+				"          proveedor_seguro = trim(insurance_provider)) ~> derivedColumn1",
+				"derivedColumn1 split(!isNull(insurance_provider) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
+				"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
+				"conditionalSplit1@valid sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id_bk,",
+				"          nombre_completo,",
+				"          genero,",
+				"          fecha_nacimiento,",
+				"          rango_etario,",
+				"          correo_electronico,",
+				"          direccion,",
+				"          proveedor_seguro",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
