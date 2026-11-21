@@ -76,7 +76,7 @@
 				"conditionalSplit1@Valid, source2 exists(conditionalSplit1@Valid@admission_id == source2@admission_id,",
 				"     negate:false,",
 				"     broadcast: 'auto')~> exists1",
-				"exists1 alterRow(insertIf(true())) ~> alterRow1",
+				"exists1 alterRow(upsertIf(true())) ~> alterRow1",
 				"alterRow1 sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
 				"     input(",
