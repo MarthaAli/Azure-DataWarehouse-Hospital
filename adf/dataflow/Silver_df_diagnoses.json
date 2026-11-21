@@ -1,0 +1,107 @@
+{
+	"name": "Silver_df_diagnoses",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Bronze_Diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admissions",
+						"type": "DatasetReference"
+					},
+					"name": "source2"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "conditionalSplit1"
+				},
+				{
+					"name": "exists1"
+				},
+				{
+					"name": "alterRow1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source(output(",
+				"          admission_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source2",
+				"source1 derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          icd_code = upper(trim(icd_code)),",
+				"          diagnosis_description = trim(diagnosis_description),",
+				"          severity = iif(isNull(severity) || trim(severity) == '', toString(null()), initCap(lower(trim(severity))))) ~> derivedColumn1",
+				"derivedColumn1 derive(icd_code = replace(replace(replace(replace(icd_code, 'E11-9', 'E11.9'), 'J45-909', 'J45.909'), 'M54-5', 'M54.5'), '-', '.'),",
+				"          diagnosis_description = iif(isNull(diagnosis_description) || trim(diagnosis_description) == '', toString(null()), diagnosis_description)) ~> derivedColumn2",
+				"derivedColumn2 split(!isNull(diagnosis_id) && !isNull(admission_id) && !isNull(severity) && !isNull(icd_code) && icd_code != '' && !isNull(diagnosis_description) && diagnosis_description != '',",
+				"     disjoint: false) ~> conditionalSplit1@(Valid, Invalid)",
+				"conditionalSplit1@Valid, source2 exists(conditionalSplit1@Valid@admission_id == source2@admission_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> exists1",
+				"exists1 alterRow(insertIf(true())) ~> alterRow1",
+				"alterRow1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_id,",
+				"          admission_id,",
+				"          icd_code,",
+				"          diagnosis_description,",
+				"          severity",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}

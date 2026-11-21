@@ -1,0 +1,113 @@
+{
+	"name": "Silver_df_billing",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Bronze_Billing",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admissions",
+						"type": "DatasetReference"
+					},
+					"name": "source2"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Billing",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "conditionalSplit1"
+				},
+				{
+					"name": "exists1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id as string,",
+				"          admission_id as string,",
+				"          charge_type as string,",
+				"          amount as string,",
+				"          payment_status as string,",
+				"          payment_date as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source(output(",
+				"          admission_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source2",
+				"source1 derive(billing_id = toInteger(trim(billing_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          charge_type = initCap(lower(trim(charge_type))),",
+				"          amount = toDecimal(replace(trim(amount), ',', ''), 2),",
+				"          payment_status = initCap(lower(trim(payment_status)))) ~> derivedColumn1",
+				"derivedColumn1 derive(payment_date = case(",
+				"              isNull(payment_date) || trim(payment_date) == '', toDate(null()),",
+				"              isDate(trim(payment_date), 'yyyy-MM-dd'), toDate(trim(payment_date), 'yyyy-MM-dd'),",
+				"              isDate(trim(payment_date), 'MM/dd/yyyy'), toDate(trim(payment_date), 'MM/dd/yyyy'),",
+				"              isDate(trim(payment_date), 'MM-dd-yyyy'), toDate(trim(payment_date), 'MM-dd-yyyy'),",
+				"              isDate(trim(payment_date), 'dd-MMM-yyyy'), toDate(trim(payment_date), 'dd-MMM-yyyy'),",
+				"              isDate(trim(payment_date), 'MMMM dd, yyyy'), toDate(trim(payment_date), 'MMMM dd, yyyy'),",
+				"              toDate(null())",
+				"          )) ~> derivedColumn2",
+				"derivedColumn2 split(!isNull(billing_id) && !isNull(admission_id) && !isNull(charge_type) && charge_type != '' && !isNull(amount) && amount >= 0 && !isNull(payment_status) && payment_status != '',",
+				"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
+				"conditionalSplit1@valid, source2 exists(conditionalSplit1@valid@admission_id == source2@admission_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> exists1",
+				"exists1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          charge_type as string,",
+				"          amount as decimal(12,2),",
+				"          payment_status as string,",
+				"          payment_date as date",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          billing_id,",
+				"          admission_id,",
+				"          charge_type,",
+				"          amount,",
+				"          payment_status,",
+				"          payment_date",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
