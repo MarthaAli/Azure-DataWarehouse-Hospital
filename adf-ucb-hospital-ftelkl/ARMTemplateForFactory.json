@@ -890,7 +890,7 @@
 						"          email = iif(isNull(email) || trim(email) == '', 'unknown@unknown.com', lower(trim(email))),",
 						"          address = iif(isNull(address) || trim(address) == '', 'Unknown', trim(address)),",
 						"          insurance_provider = iif(isNull(insurance_provider) || trim(insurance_provider) == '', 'Unknown', trim(insurance_provider))) ~> derivedColumn1",
-						"derivedColumn1 alterRow(insertIf(true())) ~> alterRow1",
+						"derivedColumn1 alterRow(upsertIf(true())) ~> alterRow1",
 						"alterRow1 sink(allowSchemaDrift: false,",
 						"     validateSchema: false,",
 						"     input(",
@@ -904,9 +904,10 @@
 						"          insurance_provider as string",
 						"     ),",
 						"     deletable:false,",
-						"     insertable:true,",
+						"     insertable:false,",
 						"     updateable:false,",
-						"     upsertable:false,",
+						"     upsertable:true,",
+						"     keys:['patient_id'],",
 						"     format: 'table',",
 						"     skipDuplicateMapInputs: true,",
 						"     skipDuplicateMapOutputs: true,",
@@ -1031,7 +1032,7 @@
 						"     broadcast: 'auto')~> exists1",
 						"exists1 split(!isNull(admission_id) && !isNull(patient_id) && !isNull(admission_date) && !isNull(department) && department != '' && !isNull(attending_doctor_id) && (isNull(discharge_date) || discharge_date >= admission_date),",
 						"     disjoint: false) ~> conditionalSplit1@(validRows, invalidRows)",
-						"conditionalSplit1@validRows alterRow(insertIf(true())) ~> alterRow1",
+						"conditionalSplit1@validRows alterRow(upsertIf(true())) ~> alterRow1",
 						"alterRow1 sink(allowSchemaDrift: false,",
 						"     validateSchema: false,",
 						"     input(",
@@ -1147,7 +1148,7 @@
 						"conditionalSplit1@Valid, source2 exists(conditionalSplit1@Valid@admission_id == source2@admission_id,",
 						"     negate:false,",
 						"     broadcast: 'auto')~> exists1",
-						"exists1 alterRow(insertIf(true())) ~> alterRow1",
+						"exists1 alterRow(upsertIf(true())) ~> alterRow1",
 						"alterRow1 sink(allowSchemaDrift: false,",
 						"     validateSchema: false,",
 						"     input(",
@@ -1455,6 +1456,434 @@
 				"[concat(variables('factoryId'), '/dataflows/Silver_df_billing')]",
 				"[concat(variables('factoryId'), '/dataflows/Silver_df_diagnoses')]",
 				"[concat(variables('factoryId'), '/dataflows/Silver_df_patients')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_fecha')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Admissions",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Admissions",
+								"type": "DatasetReference"
+							},
+							"name": "source2"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Billing",
+								"type": "DatasetReference"
+							},
+							"name": "source3"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Fecha",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "filter1"
+						},
+						{
+							"name": "filter2"
+						},
+						{
+							"name": "filter3"
+						},
+						{
+							"name": "select1"
+						},
+						{
+							"name": "select2"
+						},
+						{
+							"name": "select3"
+						},
+						{
+							"name": "union1"
+						},
+						{
+							"name": "aggregate1"
+						},
+						{
+							"name": "select4"
+						},
+						{
+							"name": "derivedColumn1"
+						},
+						{
+							"name": "alterRow1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          admission_date as date",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source(output(",
+						"          discharge_date as date",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source2",
+						"source(output(",
+						"          payment_date as date",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source3",
+						"source1 filter(!isNull(admission_date)) ~> filter1",
+						"source2 filter(!isNull(discharge_date)) ~> filter2",
+						"source3 filter(!isNull(payment_date)) ~> filter3",
+						"filter1 select(mapColumn(",
+						"          fecha_completa = admission_date",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select1",
+						"filter2 select(mapColumn(",
+						"          fecha_completa = discharge_date",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select2",
+						"filter3 select(mapColumn(",
+						"          fecha_completa = payment_date",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select3",
+						"select1, select2, select3 union(byName: true)~> union1",
+						"union1 aggregate(groupBy(fecha_completa),",
+						"     total_fechas = count()) ~> aggregate1",
+						"aggregate1 select(mapColumn(",
+						"          fecha_completa",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select4",
+						"select4 derive(fecha_key = toInteger(toString(fecha_completa, 'yyyyMMdd')),",
+						"          anio = toShort(year(fecha_completa)),",
+						"          trimestre = toByte(ceil(toDecimal(month(fecha_completa)) / 3)),",
+						"          trimestre_nombre = concat('T', toString(ceil(toDecimal(month(fecha_completa)) / 3))),",
+						"          mes = toByte(month(fecha_completa)),",
+						"          mes_nombre = case(month(fecha_completa) == 1, 'Enero', month(fecha_completa) == 2, 'Febrero', month(fecha_completa) == 3, 'Marzo', month(fecha_completa) == 4, 'Abril', month(fecha_completa) == 5, 'Mayo', month(fecha_completa) == 6, 'Junio', month(fecha_completa) == 7, 'Julio', month(fecha_completa) == 8, 'Agosto', month(fecha_completa) == 9, 'Septiembre', month(fecha_completa) == 10, 'Octubre', month(fecha_completa) == 11, 'Noviembre', 'Diciembre'),",
+						"          mes_corto = case(month(fecha_completa) == 1, 'Ene', month(fecha_completa) == 2, 'Feb', month(fecha_completa) == 3, 'Mar', month(fecha_completa) == 4, 'Abr', month(fecha_completa) == 5, 'May', month(fecha_completa) == 6, 'Jun', month(fecha_completa) == 7, 'Jul', month(fecha_completa) == 8, 'Ago', month(fecha_completa) == 9, 'Sep', month(fecha_completa) == 10, 'Oct', month(fecha_completa) == 11, 'Nov', 'Dic'),",
+						"          semana_anio = toByte(weekOfYear(fecha_completa)),",
+						"          dia_mes = toByte(dayOfMonth(fecha_completa)),",
+						"          dia_semana = toByte(iif(dayOfWeek(fecha_completa) == 0, 7, dayOfWeek(fecha_completa))),",
+						"          dia_nombre = case(dayOfWeek(fecha_completa) == 1, 'Lunes', dayOfWeek(fecha_completa) == 2, 'Martes', dayOfWeek(fecha_completa) == 3, 'Miercoles', dayOfWeek(fecha_completa) == 4, 'Jueves', dayOfWeek(fecha_completa) == 5, 'Viernes', dayOfWeek(fecha_completa) == 6, 'Sabado', 'Domingo'),",
+						"          es_fin_de_semana = iif(dayOfWeek(fecha_completa) == 0 || dayOfWeek(fecha_completa) == 6, true(), false())) ~> derivedColumn1",
+						"derivedColumn1 alterRow(upsertIf(true())) ~> alterRow1",
+						"alterRow1 sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          fecha_key as integer,",
+						"          fecha_completa as date,",
+						"          anio as integer,",
+						"          trimestre as integer,",
+						"          trimestre_nombre as string,",
+						"          mes as integer,",
+						"          mes_nombre as string,",
+						"          mes_corto as string,",
+						"          semana_anio as integer,",
+						"          dia_mes as integer,",
+						"          dia_semana as integer,",
+						"          dia_nombre as string,",
+						"          es_fin_de_semana as boolean",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:false,",
+						"     updateable:false,",
+						"     upsertable:true,",
+						"     keys:['fecha_key'],",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          fecha_key,",
+						"          fecha_completa,",
+						"          anio,",
+						"          trimestre,",
+						"          trimestre_nombre,",
+						"          mes,",
+						"          mes_nombre,",
+						"          mes_corto,",
+						"          semana_anio,",
+						"          dia_mes,",
+						"          dia_semana,",
+						"          dia_nombre,",
+						"          es_fin_de_semana",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Admissions')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Billing')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Fecha')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_pacientes')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Patients",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Pacientes",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "derivedColumn1"
+						},
+						{
+							"name": "conditionalSplit1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          patient_id as integer,",
+						"          full_name as string,",
+						"          gender as string,",
+						"          date_of_birth as date,",
+						"          phone as string,",
+						"          email as string,",
+						"          address as string,",
+						"          insurance_provider as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source1 derive(patient_id_bk = patient_id,",
+						"          nombre_completo = trim(full_name),",
+						"          genero = iif(lower(trim(gender)) == 'male' || lower(trim(gender)) == 'masculino', 'Masculino', iif(lower(trim(gender)) == 'female' || lower(trim(gender)) == 'femenino', 'Femenino', 'Otro')),",
+						"          fecha_nacimiento = date_of_birth,",
+						"          rango_etario = iif(isNull(date_of_birth), toString(null()), iif(year(currentDate()) - year(date_of_birth) <= 18, '0-18', iif(year(currentDate()) - year(date_of_birth) <= 35, '19-35', iif(year(currentDate()) - year(date_of_birth) <= 60, '36-60', '60+')))),",
+						"          correo_electronico = email,",
+						"          direccion = address,",
+						"          proveedor_seguro = trim(insurance_provider)) ~> derivedColumn1",
+						"derivedColumn1 split(!isNull(insurance_provider) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
+						"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
+						"conditionalSplit1@valid sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          paciente_key as integer,",
+						"          patient_id_bk as integer,",
+						"          nombre_completo as string,",
+						"          genero as string,",
+						"          fecha_nacimiento as date,",
+						"          rango_etario as string,",
+						"          correo_electronico as string,",
+						"          direccion as string,",
+						"          proveedor_seguro as string",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          patient_id_bk,",
+						"          nombre_completo,",
+						"          genero,",
+						"          fecha_nacimiento,",
+						"          rango_etario,",
+						"          correo_electronico,",
+						"          direccion,",
+						"          proveedor_seguro",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Patients')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Pacientes')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_diagnostico')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Diagnoses",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Diagnostico",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "aggregate1"
+						},
+						{
+							"name": "conditionalSplit1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          diagnosis_id as integer,",
+						"          admission_id as integer,",
+						"          icd_code as string,",
+						"          diagnosis_description as string,",
+						"          severity as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source1 aggregate(groupBy(codigo_icd = icd_code,",
+						"          descripcion_patologia = diagnosis_description,",
+						"          nivel_severidad = severity),",
+						"     cantidad = count()) ~> aggregate1",
+						"aggregate1 split(!isNull(codigo_icd) && trim(codigo_icd) != '' && !isNull(nivel_severidad) && trim(nivel_severidad) != '',",
+						"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
+						"conditionalSplit1@valid sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          diagnostico_key as integer,",
+						"          codigo_icd as string,",
+						"          descripcion_patologia as string,",
+						"          nivel_severidad as string",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          codigo_icd,",
+						"          descripcion_patologia,",
+						"          nivel_severidad",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Diagnoses')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Diagnostico')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_departamentos')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Admissions",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Departamentos",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "derivedColumn1"
+						},
+						{
+							"name": "aggregate1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          admission_id as integer,",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source1 derive(nombre_departamento = trim(department)) ~> derivedColumn1",
+						"derivedColumn1 aggregate(groupBy(nombre_departamento),",
+						"     cantidad = count()) ~> aggregate1",
+						"aggregate1 sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          departamento_key as integer,",
+						"          nombre_departamento as string",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          nombre_departamento",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Admissions')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Departamentos')]"
 			]
 		}
 	]
