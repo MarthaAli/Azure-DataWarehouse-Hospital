@@ -1697,7 +1697,7 @@
 						"          correo_electronico = email,",
 						"          direccion = address,",
 						"          proveedor_seguro = trim(insurance_provider)) ~> derivedColumn1",
-						"derivedColumn1 split(!isNull(insurance_provider) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
+						"derivedColumn1 split(!isNull(insurance_provider) && !isNull(date_of_birth) && trim(insurance_provider) != '' && !isNull(phone) && trim(phone) != '' && !isNull(email) && trim(email) != '',",
 						"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
 						"conditionalSplit1@valid sink(allowSchemaDrift: false,",
 						"     validateSchema: true,",
@@ -1884,6 +1884,570 @@
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/datasets/DS_Silver_Admissions')]",
 				"[concat(variables('factoryId'), '/datasets/DS_Gold_Departamentos')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_servicio_cargo')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Billing",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Servicio_Cargo",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "aggregate1"
+						},
+						{
+							"name": "select1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          billing_id as integer,",
+						"          admission_id as integer,",
+						"          charge_type as string,",
+						"          amount as decimal(12,2),",
+						"          payment_status as string,",
+						"          payment_date as date",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source1 aggregate(groupBy(charge_type,",
+						"          payment_status),",
+						"     cantidad = count()) ~> aggregate1",
+						"aggregate1 select(mapColumn(",
+						"          tipo_cargo = charge_type,",
+						"          estado_pago = payment_status",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select1",
+						"select1 sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          servicio_cargo_key as integer,",
+						"          tipo_cargo as string,",
+						"          estado_pago as string",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          tipo_cargo,",
+						"          estado_pago",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Billing')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Servicio_Cargo')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_admisiones')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Admissions",
+								"type": "DatasetReference"
+							},
+							"name": "sourceAdmisiones"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Pacientes",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDimPaciente"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Departamentos",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDimDepartamento"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Diagnoses",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDiagnoses"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Diagnostico",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDimDiagnostico"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Fecha",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDimFechaIngreso"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Fecha",
+								"type": "DatasetReference"
+							},
+							"name": "sourceDimFechaAlta"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Admisiones",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "joinPaciente"
+						},
+						{
+							"name": "joinDepartamento"
+						},
+						{
+							"name": "joinDiagnosticos"
+						},
+						{
+							"name": "joinDimDiagnostico"
+						},
+						{
+							"name": "joinFechaIngreso"
+						},
+						{
+							"name": "joinFechaAlta"
+						},
+						{
+							"name": "select1"
+						},
+						{
+							"name": "derivedColumn1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          admission_id as integer,",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceAdmisiones",
+						"source(output(",
+						"          paciente_key as integer,",
+						"          patient_id_bk as integer,",
+						"          nombre_completo as string,",
+						"          genero as string,",
+						"          fecha_nacimiento as date,",
+						"          rango_etario as string,",
+						"          correo_electronico as string,",
+						"          direccion as string,",
+						"          proveedor_seguro as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDimPaciente",
+						"source(output(",
+						"          departamento_key as integer,",
+						"          nombre_departamento as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDimDepartamento",
+						"source(output(",
+						"          diagnosis_id as integer,",
+						"          admission_id as integer,",
+						"          icd_code as string,",
+						"          diagnosis_description as string,",
+						"          severity as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDiagnoses",
+						"source(output(",
+						"          diagnostico_key as integer,",
+						"          codigo_icd as string,",
+						"          descripcion_patologia as string,",
+						"          nivel_severidad as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDimDiagnostico",
+						"source(output(",
+						"          fecha_key as integer,",
+						"          fecha_completa as date",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDimFechaIngreso",
+						"source(output(",
+						"          fecha_key as integer,",
+						"          fecha_completa as date",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> sourceDimFechaAlta",
+						"sourceAdmisiones, sourceDimPaciente join(patient_id == patient_id,",
+						"     joinType:'inner',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'right')~> joinPaciente",
+						"joinPaciente, sourceDimDepartamento join(department == nombre_departamento,",
+						"     joinType:'inner',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'auto')~> joinDepartamento",
+						"joinDepartamento, sourceDiagnoses join(sourceAdmisiones@admission_id == sourceDiagnoses@admission_id,",
+						"     joinType:'inner',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'auto')~> joinDiagnosticos",
+						"joinDiagnosticos, sourceDimDiagnostico join(icd_code == codigo_icd",
+						"     && diagnosis_description == descripcion_patologia",
+						"     && severity == nivel_severidad,",
+						"     joinType:'inner',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'auto')~> joinDimDiagnostico",
+						"joinDimDiagnostico, sourceDimFechaIngreso join(admission_date == fecha_completa,",
+						"     joinType:'inner',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'auto')~> joinFechaIngreso",
+						"joinFechaIngreso, sourceDimFechaAlta join(discharge_date == sourceDimFechaAlta@fecha_completa,",
+						"     joinType:'left',",
+						"     matchType:'exact',",
+						"     ignoreSpaces: false,",
+						"     broadcast: 'auto')~> joinFechaAlta",
+						"joinFechaAlta select(mapColumn(",
+						"          admission_id_bk = sourceAdmisiones@admission_id,",
+						"          admission_date,",
+						"          discharge_date,",
+						"          medico_id = attending_doctor_id,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          diagnostico_key,",
+						"          fecha_ingreso_key = sourceDimFechaIngreso@fecha_key,",
+						"          fecha_alta_key = sourceDimFechaAlta@fecha_key",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select1",
+						"select1 derive(dias_estancia = iif(isNull(discharge_date), toInteger(null()), toInteger(discharge_date - admission_date)),",
+						"          conteo_admisiones = toInteger(1)) ~> derivedColumn1",
+						"derivedColumn1 sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          admision_key as long,",
+						"          admission_id_bk as integer,",
+						"          paciente_key as integer,",
+						"          departamento_key as integer,",
+						"          diagnostico_key as integer,",
+						"          fecha_ingreso_key as integer,",
+						"          fecha_alta_key as integer,",
+						"          medico_id as integer,",
+						"          dias_estancia as integer,",
+						"          conteo_admisiones as integer",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          diagnostico_key,",
+						"          fecha_ingreso_key,",
+						"          fecha_alta_key,",
+						"          medico_id,",
+						"          dias_estancia,",
+						"          conteo_admisiones",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Admissions')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Pacientes')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Departamentos')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Diagnoses')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Diagnostico')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Fecha')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Admisiones')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Gold_df_facturacion')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Billing",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Silver_Admissions",
+								"type": "DatasetReference"
+							},
+							"name": "source2"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Pacientes",
+								"type": "DatasetReference"
+							},
+							"name": "source3"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Departamentos",
+								"type": "DatasetReference"
+							},
+							"name": "source4"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Servicio_Cargo",
+								"type": "DatasetReference"
+							},
+							"name": "source5"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Fecha",
+								"type": "DatasetReference"
+							},
+							"name": "source6"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_Facturacion",
+								"type": "DatasetReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [
+						{
+							"name": "lookup1"
+						},
+						{
+							"name": "lookup2"
+						},
+						{
+							"name": "lookup3"
+						},
+						{
+							"name": "lookup4"
+						},
+						{
+							"name": "lookup5"
+						},
+						{
+							"name": "derivedColumn1"
+						},
+						{
+							"name": "select1"
+						},
+						{
+							"name": "conditionalSplit1"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          billing_id as integer,",
+						"          admission_id as integer,",
+						"          charge_type as string,",
+						"          amount as decimal(12,2),",
+						"          payment_status as string,",
+						"          payment_date as date",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source1",
+						"source(output(",
+						"          admission_id_ref as integer,",
+						"          patient_id_ref as integer,",
+						"          department_ref as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source2",
+						"source(output(",
+						"          paciente_key as integer,",
+						"          patient_id_bk_ref as integer",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source3",
+						"source(output(",
+						"          departamento_key as integer,",
+						"          departamento_ref as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source4",
+						"source(output(",
+						"          servicio_cargo_key as integer,",
+						"          charge_type_ref as string,",
+						"          payment_status_ref as string",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source5",
+						"source(output(",
+						"          fecha_key as integer,",
+						"          fecha_pago_ref as date",
+						"     ),",
+						"     allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table') ~> source6",
+						"source1, source2 lookup(admission_id == admission_id_ref,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> lookup1",
+						"lookup1, source3 lookup(patient_id_ref == patient_id_bk_ref,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> lookup2",
+						"lookup2, source4 lookup(department_ref == departamento_ref,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> lookup3",
+						"lookup3, source5 lookup(charge_type == charge_type_ref",
+						"     && payment_status == payment_status_ref,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> lookup4",
+						"lookup4, source6 lookup(payment_date == fecha_pago_ref,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> lookup5",
+						"lookup5 derive(billing_id_bk = billing_id,",
+						"          admission_id_bk = admission_id,",
+						"          monto_facturado = toDecimal(amount),",
+						"          conteo_transacciones = toInteger(1)) ~> derivedColumn1",
+						"derivedColumn1 select(mapColumn(",
+						"          billing_id_bk,",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          servicio_cargo_key,",
+						"          fecha_pago_key = fecha_key,",
+						"          monto_facturado,",
+						"          conteo_transacciones",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> select1",
+						"select1 split(!isNull(billing_id_bk) &&",
+						"          !isNull(admission_id_bk) &&",
+						"          !isNull(paciente_key) &&",
+						"          !isNull(departamento_key) &&",
+						"          !isNull(servicio_cargo_key) &&",
+						"          !isNull(monto_facturado),",
+						"     disjoint: false) ~> conditionalSplit1@(valid, invalid)",
+						"conditionalSplit1@valid sink(allowSchemaDrift: false,",
+						"     validateSchema: true,",
+						"     input(",
+						"          facturacion_key as long,",
+						"          billing_id_bk as integer,",
+						"          admission_id_bk as integer,",
+						"          paciente_key as integer,",
+						"          departamento_key as integer,",
+						"          servicio_cargo_key as integer,",
+						"          fecha_pago_key as integer,",
+						"          monto_facturado as decimal(12,2),",
+						"          conteo_transacciones as integer",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          billing_id_bk,",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          servicio_cargo_key,",
+						"          fecha_pago_key,",
+						"          monto_facturado,",
+						"          conteo_transacciones",
+						"     )) ~> sink1"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Billing')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Admissions')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Pacientes')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Departamentos')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Servicio_Cargo')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Fecha')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Gold_Facturacion')]"
 			]
 		}
 	]
